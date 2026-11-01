@@ -309,3 +309,5 @@ TSWLatexianTemp*
 # Makeindex log files
 *.lpz
 
+data2d/
+*.bin

@@ -51,3 +51,9 @@ test-filters:
 	python tests/plot_lele.py
 	
 	
+
+# 2D extension (Orszag-Tang MHD turbulence, see main2d.f90)
+compile2d:
+	gfortran -J $(MDIR) $(MDIR)physicals.f90 $(MDIR)numericals.f90 $(MDIR)lele_filter.f90 $(MDIR)derivative.f90 $(MDIR)derivative2d.f90 $(MDIR)poisson2d.f90 main2d.f90 -Ofast -fno-stack-arrays -o run2d.out
+run2d:
+	mkdir -p data2d && ./run2d.out
