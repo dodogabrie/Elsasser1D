@@ -5,7 +5,8 @@
 ! Initial condition: Orszag-Tang vortex. Usage: ./run2d.out  (reads input2d.dat)
 module state2d
    real*8, allocatable :: wp(:,:), wm(:,:), ap(:,:), am(:,:)
-   real*8 :: nu2, dt2, dx2
+   real*8 :: nu2, dt2, dx2, b0
+   character(64) :: outdir
    integer :: n2
 end module state2d
 
@@ -34,6 +35,9 @@ subroutine rhs2d()
    rp = rp - lap; rm = rm + lap
    call d_dir(ap,lap,n2,dx2,1,2); call d_dir(ap,t2,n2,dx2,2,2); rp = rp + nu2*(lap+t2)
    call d_dir(am,lap,n2,dx2,1,2); call d_dir(am,t2,n2,dx2,2,2); rm = rm + nu2*(lap+t2)
+   ! uniform field b0 along x: Alfven propagation, the c term of the 1D code
+   call d_dir(ap,lap,n2,dx2,1,1); rp = rp + b0*lap
+   call d_dir(am,lap,n2,dx2,1,1); rm = rm - b0*lap
    ap = rp; am = rm
 end subroutine rhs2d
 
@@ -42,18 +46,26 @@ program main2d
    use derivative2d
    use derivative, only: diagonal
    implicit none
-   integer :: nsteps, nout, i, j, k, s, fr
+   integer :: nsteps, nout, i, j, k, s, fr, ic
    real*8 :: pi, x, y, tend
    character(32) :: nm
    pi = 4.d0*datan(1.d0)
    open(1, file='input2d.dat', status='old')
-   read(1,*) n2; read(1,*) dt2; read(1,*) tend; read(1,*) nu2; read(1,*) nout
+   read(1,*) n2; read(1,*) dt2; read(1,*) tend; read(1,*) nu2; read(1,*) nout; read(1,*) ic; read(1,*) b0; read(1,*) outdir
    close(1)
    dx2 = 2*pi/n2; nsteps = nint(tend/dt2)
    allocate(wp(n2,n2), wm(n2,n2), ap(n2,n2), am(n2,n2))
    call init_deriv2d(n2)
    ! Orszag-Tang: phi = -cos x - cos y, psi = -cos y - cos(2x)/2
    do j = 1, n2; do i = 1, n2
+      if (ic == 2) then
+         ! Kelvin-Helmholtz: double shear layer + small perturbation, w+ = w- (no fluctuating b)
+         x = (i-1)*dx2; y = (j-1)*dx2
+         wp(i,j) = -(1/0.15d0)*(1/cosh((y-pi/2)/0.15d0)**2 - 1/cosh((y-3*pi/2)/0.15d0)**2) &
+                 + 0.05d0*cos(x)*(exp(-((y-pi/2)/0.4d0)**2) + exp(-((y-3*pi/2)/0.4d0)**2))
+         wm(i,j) = wp(i,j)
+         cycle
+      endif
       x = (i-1)*dx2; y = (j-1)*dx2
       wp(i,j) = (cos(x) + cos(y)) + (cos(y) + 2*cos(2*x))   ! w + j
       wm(i,j) = (cos(x) + cos(y)) - (cos(y) + 2*cos(2*x))   ! w - j
@@ -76,7 +88,7 @@ program main2d
 contains
    subroutine save2d(num)
       integer :: num
-      write(nm, '(A,I5.5,A)') 'data2d/w', num, '.bin'
+      write(nm, '(A,I5.5,A)') trim(outdir)//'/w', num, '.bin'
       open(2, file=trim(nm), form='unformatted', access='stream', status='replace')
       write(2) real(wp, 4), real(wm, 4)
       close(2)
